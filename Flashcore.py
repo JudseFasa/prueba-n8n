@@ -1,50 +1,68 @@
 import asyncio
 from playwright.async_api import async_playwright
 
-URL = "https://www.flashscore.co/futbol/"
+async def expandir_todos_los_partidos(page):
+    while True:
+        boton = page.locator("a[data-testid='wcl-buttonLink']:has-text('Mostrar más')")
+        if await boton.count() == 0:
+            break
+        await boton.first.scroll_into_view_if_needed()
+        await boton.first.click()
+        await page.wait_for_timeout(800)
+
 
 async def main():
     async with async_playwright() as p:
-        # Puedes usar chromium, firefox o webkit
-        browser = await p.chromium.launch(headless=False)  # True = sin ventana
+
+        browser = await p.chromium.launch(headless=False)
         page = await browser.new_page()
 
-        print(f"Abriendo {URL}")
-        await page.goto(URL, wait_until="networkidle")
+        url = "https://www.flashscore.co/futbol/alemania/bundesliga-2024-2025/resultados/"
+        await page.goto(url, wait_until="networkidle")
 
-        # Cerrar banner de cookies si aparece
-        try:
-            await page.locator("button#onetrust-accept-btn-handler").click(timeout=5000)
-            print("Cookies aceptadas.")
-        except:
-            print("No apareció el banner de cookies.")
+        # Expandir todos los partidos
+        await expandir_todos_los_partidos(page)
 
+        # Capturar todos los nodos del feed
+        nodos = page.locator(".event__round, .event__match")
+        total_nodos = await nodos.count()
 
-        # Esperar a que aparezca el div
-        await page.wait_for_selector("div.left_menu_categories_seo")
+        jornada_actual = "Unknown"
 
-        # Seleccionar todos los <a> dentro del div
-        enlaces = page.locator("div.left_menu_categories_seo a")
+        resultados = []
 
-        cantidad = await enlaces.count()
-        print(f"\nEncontrados {cantidad} enlaces:\n")
+        for i in range(total_nodos):
+            item = nodos.nth(i)
 
-        nombres = []
+            # Si es una jornada
+            if await item.evaluate("e => e.classList.contains('event__round')"):
+                jornada_actual = await item.inner_text()
+                continue
 
-        for i in range(cantidad):
-            texto = await enlaces.nth(i).inner_text()
-            href = await enlaces.nth(i).get_attribute("href")
-            nombres.append((texto, href))
-            print(f"{i+1}. {texto} -> {href}")
+            # Si es un partido
+            if await item.evaluate("e => e.classList.contains('event__match')"):
 
-        # SI QUIERES, GUARDAR A TXT AUTOMÁTICAMENTE
-        with open("ligas_extraidas.txt", "w", encoding="utf-8") as f:
-            for nombre, link in nombres:
-                f.write(f"{nombre} | {link}\n")
+                fecha = await item.locator(".event__time").inner_text()
 
-        print("\nGuardado en ligas_extraidas.txt")
+                local = await item.locator(".event__homeParticipant .wcl-name_jjfMf").inner_text()
+                visitante = await item.locator(".event__awayParticipant .wcl-name_jjfMf").inner_text()
 
+                goles_local = await item.locator(".event__score--home").inner_text()
+                goles_visita = await item.locator(".event__score--away").inner_text()
+
+                resultados.append({
+                    "jornada": jornada_actual,
+                    "fecha": fecha,
+                    "local": local,
+                    "visitante": visitante,
+                    "goles_local": goles_local,
+                    "goles_visitante": goles_visita
+                })
+
+                print(jornada_actual, fecha, local, visitante, goles_local, goles_visita)
+
+        print(f"\nTotal partidos: {len(resultados)}")
         await browser.close()
 
-# Ejecutar script
+
 asyncio.run(main())
