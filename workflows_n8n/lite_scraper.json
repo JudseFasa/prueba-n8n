@@ -1,0 +1,105 @@
+{
+  "nodes": [
+    {
+      "name": "Start",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 6
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "HTTP Request to Render",
+      "type": "n8n-nodes-base.httpRequest",
+      "parameters": {
+        "url": "https://your-api.onrender.com/sync",
+        "requestMethod": "POST",
+        "sendBody": true,
+        "jsonBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "leagues",
+              "value": "[]"
+            },
+            {
+              "name": "force_full",
+              "value": "false"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "On Success",
+      "type": "n8n-nodes-base.set",
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "success_message",
+              "name": "message",
+              "value": "={{$json.message}}",
+              "type": "string"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "On Error",
+      "type": "n8n-nodes-base.set",
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "error_message",
+              "name": "message",
+              "value": "Sync failed: {{$json.error}}",
+              "type": "string"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "Log to Supabase",
+      "type": "n8n-nodes-base.httpRequest",
+      "parameters": {
+        "url": "{{$env.SUPABASE_URL}}/rest/v1/logs",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "jsonBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "source",
+              "value": "n8n_sync"
+            },
+            {
+              "name": "message",
+              "value": "={{$json.message}}"
+            },
+            {
+              "name": "level",
+              "value": "={{$node['Start'].context.executionId ? 'info' : 'error'}}"
+            }
+          ]
+        },
+        "options": {
+          "headers": {
+            "apikey": "{{$env.SUPABASE_KEY}}",
+            "Authorization": "Bearer {{$env.SUPABASE_KEY}}"
+          }
+        }
+      }
+    }
+  ]
+}

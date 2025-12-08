@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Football Data Dashboard</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>⚽ Football Data Dashboard</h1>
+            <p>Datos sincronizados de Flashscore</p>
+        </header>
+        
+        <div class="stats-grid">
+            <div class="stat-card">
+                <h3>Ligas Activas</h3>
+                <div id="leagues-count" class="stat-value">0</div>
+            </div>
+            <div class="stat-card">
+                <h3>Partidos Totales</h3>
+                <div id="matches-count" class="stat-value">0</div>
+            </div>
+            <div class="stat-card">
+                <h3>Última Sincronización</h3>
+                <div id="last-sync" class="stat-value">--:--</div>
+            </div>
+        </div>
+        
+        <div class="content">
+            <div class="section">
+                <h2>📊 Partidos Recientes</h2>
+                <div id="recent-matches" class="matches-list">
+                    <!-- Se llena con JS -->
+                </div>
+            </div>
+            
+            <div class="section">
+                <h2>🔄 Control de Sincronización</h2>
+                <button onclick="triggerSync()" class="sync-btn">
+                    🔄 Forzar Sincronización
+                </button>
+                <div id="sync-status"></div>
+            </div>
+        </div>
+    </div>
+    
+    <script src="script.js"></script>
+</body>
+</html>
