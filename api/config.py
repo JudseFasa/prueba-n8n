@@ -7,7 +7,7 @@ load_dotenv()
 class Settings:
     # Supabase
     SUPABASE_URL = os.getenv("https://mvsnymlcqutxnmnfxdgt.supabase.co")
-    SUPABASE_KEY = os.getenv("https://mvsnymlcqutxnmnfxdgt.supabase.co")
+    SUPABASE_KEY = os.getenv("sb_secret_Wo7RzDpb1DZitr-_1Dy8PA_LDq0SoME")
     SUPABASE_SERVICE_KEY = os.getenv("SUPABASE_SERVICE_KEY", os.getenv("SUPABASE_KEY"))
     
     # API
