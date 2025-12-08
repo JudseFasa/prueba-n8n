@@ -1,38 +1,48 @@
 import os
 from dotenv import load_dotenv
+import logging
+
+logger = logging.getLogger(__name__)
 
 # Cargar variables de entorno
 load_dotenv()
 
 class Settings:
     # Supabase
-    SUPABASE_URL = os.getenv("https://mvsnymlcqutxnmnfxdgt.supabase.co")
-    SUPABASE_KEY = os.getenv("sb_secret_Wo7RzDpb1DZitr-_1Dy8PA_LDq0SoME")
-    SUPABASE_SERVICE_KEY = os.getenv("SUPABASE_SERVICE_KEY", os.getenv("SUPABASE_KEY"))
+    SUPABASE_URL = os.getenv("SUPABASE_URL", "https://mvsnymlcqutxnmnfxdgt.supabase.co")
+    SUPABASE_KEY = os.getenv("SUPABASE_KEY", "")
+    
+    # Determinar tipo de key
+    @property
+    def is_service_role_key(self):
+        return self.SUPABASE_KEY.startswith("sb_secret_")
+    
+    @property
+    def is_anon_key(self):
+        return self.SUPABASE_KEY.startswith("eyJ")
     
     # API
     API_HOST = os.getenv("HOST", "0.0.0.0")
     API_PORT = int(os.getenv("PORT", 10000))
     DEBUG = os.getenv("DEBUG", "False").lower() == "true"
     
-    # Scraper
-    SCRAPER_TIMEOUT = 30
-    SCRAPER_USER_AGENT = "Mozilla/5.0 (compatible; FootballScraper/1.0)"
-    
     # Validaciones
-    @classmethod
-    def validate(cls):
+    def validate(self):
         missing = []
-        if not cls.SUPABASE_URL:
+        if not self.SUPABASE_URL:
             missing.append("SUPABASE_URL")
-        if not cls.SUPABASE_KEY:
+        if not self.SUPABASE_KEY:
             missing.append("SUPABASE_KEY")
         
         if missing:
-            raise ValueError(f"Faltan variables de entorno: {', '.join(missing)}")
+            logger.warning(f"⚠️ Variables de entorno faltantes: {', '.join(missing)}")
+            return False
         
-        print("✅ Configuración cargada correctamente")
-        print(f"   Supabase URL: {cls.SUPABASE_URL[:30]}...")
-        print(f"   API Port: {cls.API_PORT}")
+        logger.info("✅ Configuración cargada")
+        logger.info(f"   Supabase URL: {self.SUPABASE_URL}")
+        logger.info(f"   Tipo de Key: {'Service Role' if self.is_service_role_key else 'Anon Public' if self.is_anon_key else 'Desconocido'}")
+        logger.info(f"   Debug: {self.DEBUG}")
+        
+        return True
 
 settings = Settings()
