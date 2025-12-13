@@ -9,7 +9,7 @@ from datetime import datetime
 # ======================================
 # CONFIG
 # ======================================
-PARTIDOS_PARALELO = 6
+PARTIDOS_PARALELO = 2
 PAGE_TIMEOUT = 60000
 RETRIES = 2
 MAX_TEMPORADAS = 5
@@ -554,7 +554,10 @@ async def main(urls_base):
 # ======================================
 URLS_BASE = [
     # Formato: "URL_BASE|NOMBRE_ARCHIVO"
-    "https://www.flashscore.co/futbol/espana/laliga-ea-sports/|España",
+    "https://www.flashscore.co/futbol/colombia/primera-a|Colombia",
+    "https://www.flashscore.co/futbol/belgica/jupiler-pro-league|Bélgica",
+    "https://www.flashscore.co/futbol/espana/laliga-ea-sports|España",
+    "https://www.flashscore.co/futbol/italia/serie-a|Italia",
 ]
 
 if __name__ == "__main__":
