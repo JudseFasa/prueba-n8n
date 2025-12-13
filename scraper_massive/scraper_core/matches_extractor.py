@@ -70,18 +70,15 @@ class Partido:
         self.temporada = temporada
         self.db_name = db_name
 
-
-async def extract_matches_temporada(page, temporada_info, db_name, queue: QueueManager):
-    pais = temporada_info['pais']
-    liga = temporada_info['liga']
-    temporada = temporada_info['año']
+async def extract_matches_temporada(context, temporada_url, db_name, pais, liga, temporada, queue: QueueManager):
 
     print(f"\n====== {pais.upper()} | {liga} | {temporada} ======")
-    print(f"🌐 URL: {temporada_info['url']}")
+    page = await context.new_page()
+    print(f"🌐 URL: {temporada_url}")
 
     init_db(db_name)
 
-    await page.goto(temporada_info['url'], timeout=PAGE_TIMEOUT, wait_until="networkidle")
+    await page.goto(temporada_url, timeout=PAGE_TIMEOUT, wait_until="networkidle")
 
     try:
         await click_mostrar_mas_partidos(page)
@@ -146,3 +143,4 @@ async def extract_matches_temporada(page, temporada_info, db_name, queue: QueueM
                 print(f"  ➕ {i + 1} partidos enviados a cola")
 
     print(f"📥 Total enviados a cola: {total}")
+    await page.close()

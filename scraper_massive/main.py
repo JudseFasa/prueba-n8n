@@ -6,7 +6,7 @@ from playwright.async_api import async_playwright
 from scraper_core.seasons_extractor import get_temporadas_mixto
 from scraper_core.matches_extractor import extract_matches_temporada
 from scraper_core.queue_manager import QueueManager
-from scraper_core.workers_goles import worker_goles
+from scraper_core.workers_goles import goal_worker
 
 # =========================
 # CONFIG
@@ -43,14 +43,14 @@ LIGAS = [
 # =========================
 async def run():
     async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=False)
+        browser = await p.chromium.launch(headless=True)
         context = await browser.new_context()
 
         queue = QueueManager(maxsize=QUEUE_SIZE)
 
         # Workers de goles
         workers = [
-            asyncio.create_task(worker_goles(i + 1, context, queue))
+            asyncio.create_task(goal_worker(i + 1, context, queue))
             for i in range(WORKERS_GOLES)
         ]
 
@@ -93,8 +93,9 @@ async def run():
                 # Esperar a que la cola se vacíe un poco
                 await queue.wait_until_half_empty()
 
-        # Finalizar
-        await queue.join()
+        # Finalizar 
+        await queue.finish()  # Nueva línea: Señala que no hay más items por producir
+        await queue.wait_until_done()  # Reemplaza join() por esto
 
         for w in workers:
             w.cancel()
