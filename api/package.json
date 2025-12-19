@@ -1,0 +1,10 @@
+{
+  "name": "estadisticas-futbol",
+  "version": "1.0.0",
+  "description": "Aplicación de estadísticas de fútbol con Supabase",
+  "scripts": {
+    "start": "echo 'Aplicación estática - no se requiere servidor Node' && exit 0"
+  },
+  "dependencies": {},
+  "devDependencies": {}
+}

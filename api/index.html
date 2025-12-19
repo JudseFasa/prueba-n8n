@@ -1,0 +1,1662 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Estadísticas de Fútbol - Supabase</title>
+    <!-- CORREGIDO: Cambiar a la versión correcta de Supabase JS -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.38.4/dist/umd/supabase.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        /* Reset y variables */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+        }
+        
+        :root {
+            --primary: #3ecf8e;
+            --primary-dark: #2ca771;
+            --secondary: #4c51bf;
+            --dark: #121212;
+            --light: #f7fafc;
+            --gray: #718096;
+            --light-gray: #e2e8f0;
+            --success: #48bb78;
+            --warning: #ed8936;
+            --danger: #f56565;
+            --border-radius: 8px;
+            --box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            --transition: all 0.3s ease;
+            --sidebar-width: 220px;
+        }
+        
+        body {
+            background: #f4f6f8;
+            color: #333;
+            line-height: 1.6;
+        }
+        
+        /* HEADER MEJORADO */
+        .top-bar {
+            background: var(--dark);
+            color: white;
+            display: flex;
+            align-items: center;
+            padding: 15px 30px;
+            gap: 20px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+        
+        .logo {
+            font-weight: bold;
+            font-size: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .logo i {
+            color: var(--primary);
+        }
+        
+        .search-box {
+            display: flex;
+            align-items: center;
+            background: white;
+            padding: 8px 15px;
+            border-radius: var(--border-radius);
+            flex: 1;
+            max-width: 400px;
+            gap: 10px;
+        }
+        
+        .search-box input {
+            border: none;
+            outline: none;
+            width: 100%;
+            font-size: 0.95rem;
+        }
+        
+        .menu {
+            display: flex;
+            gap: 20px;
+            margin-left: auto;
+        }
+        
+        .menu a {
+            color: #ddd;
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 15px;
+            border-radius: var(--border-radius);
+            transition: var(--transition);
+        }
+        
+        .menu a:hover {
+            color: white;
+            background: rgba(255, 255, 255, 0.1);
+        }
+        
+        /* LAYOUT PRINCIPAL */
+        .layout {
+            display: grid;
+            grid-template-columns: var(--sidebar-width) 1fr;
+            gap: 20px;
+            padding: 20px;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        /* SIDEBAR */
+        .sidebar {
+            background: white;
+            padding: 20px;
+            border-radius: var(--border-radius);
+            box-shadow: var(--box-shadow);
+            height: fit-content;
+            position: sticky;
+            top: 80px;
+        }
+        
+        .sidebar h3 {
+            margin-bottom: 15px;
+            color: var(--dark);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 1.1rem;
+        }
+        
+        .sidebar h3 i {
+            color: var(--primary);
+        }
+        
+        .leagues-list {
+            list-style: none;
+            margin-bottom: 25px;
+        }
+        
+        .leagues-list li {
+            padding: 12px 15px;
+            cursor: pointer;
+            border-radius: var(--border-radius);
+            margin-bottom: 8px;
+            transition: var(--transition);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .leagues-list li:hover {
+            background: #f0f2f5;
+        }
+        
+        .leagues-list li.active {
+            background: var(--primary);
+            color: white;
+        }
+        
+        .leagues-list li i {
+            color: var(--gray);
+        }
+        
+        .leagues-list li.active i {
+            color: white;
+        }
+        
+        .sidebar .filter-group {
+            margin-bottom: 15px;
+        }
+        
+        .sidebar .filter-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: var(--dark);
+            font-size: 0.9rem;
+        }
+        
+        .sidebar select {
+            width: 100%;
+            padding: 10px 15px;
+            border: 1px solid var(--light-gray);
+            border-radius: var(--border-radius);
+            font-size: 0.9rem;
+            background: white;
+        }
+        
+        .sidebar button {
+            width: 100%;
+            padding: 12px 15px;
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            border-radius: var(--border-radius);
+            font-size: 0.9rem;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            transition: var(--transition);
+            margin-top: 10px;
+        }
+        
+        .sidebar button:hover {
+            background-color: var(--primary-dark);
+            transform: translateY(-2px);
+        }
+        
+        .sidebar button.secondary {
+            background-color: var(--secondary);
+        }
+        
+        .sidebar button.secondary:hover {
+            background-color: #434190;
+        }
+        
+        /* CONTENIDO PRINCIPAL */
+        .content {
+            background: transparent;
+        }
+        
+        /* TARJETAS DE ESTADÍSTICAS */
+        .stats-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .stat-card {
+            background-color: white;
+            border-radius: var(--border-radius);
+            padding: 20px;
+            box-shadow: var(--box-shadow);
+            transition: var(--transition);
+        }
+        
+        .stat-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 15px rgba(0, 0, 0, 0.1);
+        }
+        
+        .stat-card h3 {
+            font-size: 1rem;
+            margin-bottom: 10px;
+            color: var(--gray);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .stat-card h3 i {
+            color: var(--primary);
+        }
+        
+        .stat-value {
+            font-size: 2.2rem;
+            font-weight: 700;
+            color: var(--dark);
+            line-height: 1;
+        }
+        
+        .stat-detail {
+            margin-top: 8px;
+            color: var(--gray);
+            font-size: 0.85rem;
+        }
+        
+        /* SECCIONES DE DATOS */
+        .data-section {
+            background-color: white;
+            border-radius: var(--border-radius);
+            box-shadow: var(--box-shadow);
+            overflow: hidden;
+            margin-bottom: 30px;
+        }
+        
+        .section-header {
+            background-color: var(--dark);
+            color: white;
+            padding: 18px 25px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .section-header h2 {
+            font-size: 1.3rem;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .section-header i {
+            color: var(--primary);
+        }
+        
+        .table-container {
+            overflow-x: auto;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        thead {
+            background-color: #f8f9fa;
+        }
+        
+        th {
+            padding: 15px 20px;
+            text-align: left;
+            font-weight: 600;
+            color: var(--dark);
+            border-bottom: 2px solid var(--light-gray);
+            font-size: 0.9rem;
+        }
+        
+        td {
+            padding: 15px 20px;
+            border-bottom: 1px solid var(--light-gray);
+            font-size: 0.9rem;
+        }
+        
+        tbody tr:hover {
+            background-color: #f8f9fa;
+        }
+        
+        .team-cell {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .team-logo {
+            width: 30px;
+            height: 30px;
+            background-color: var(--light-gray);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        /* PARTIDOS RECIENTES - ESTILO TABLA */
+        .matches {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        .matches th,
+        .matches td {
+            padding: 15px;
+            border-bottom: 1px solid #eee;
+            text-align: center;
+        }
+        
+        .matches tr:hover {
+            background: #f1f1f1;
+        }
+        
+        .match-row {
+            border-bottom: 1px solid var(--light-gray);
+            padding: 15px 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        
+        .match-row:last-child {
+            border-bottom: none;
+        }
+        
+        .match-teams {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        
+        .match-result {
+            font-weight: 700;
+            font-size: 1.1rem;
+            padding: 5px 15px;
+            background-color: #f8f9fa;
+            border-radius: 20px;
+            min-width: 80px;
+            text-align: center;
+        }
+        
+        .match-date {
+            color: var(--gray);
+            font-size: 0.9rem;
+        }
+        
+        /* LOADERS */
+        .loader {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 50px;
+            color: var(--gray);
+        }
+        
+        .spinner {
+            border: 4px solid rgba(0, 0, 0, 0.1);
+            border-radius: 50%;
+            border-top: 4px solid var(--primary);
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin-bottom: 20px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .hidden {
+            display: none;
+        }
+        
+        /* FOOTER */
+        footer {
+            text-align: center;
+            padding: 30px 0;
+            color: var(--gray);
+            font-size: 0.9rem;
+            border-top: 1px solid var(--light-gray);
+            margin-top: 30px;
+            grid-column: 1 / -1;
+        }
+        
+        footer a {
+            color: var(--primary);
+            text-decoration: none;
+        }
+        
+        footer a:hover {
+            text-decoration: underline;
+        }
+        
+        /* NOTIFICACIONES */
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 15px 25px;
+            border-radius: var(--border-radius);
+            color: white;
+            font-weight: 600;
+            box-shadow: var(--box-shadow);
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            transform: translateX(150%);
+            transition: transform 0.5s ease;
+        }
+        
+        .notification.show {
+            transform: translateX(0);
+        }
+        
+        .notification.success {
+            background-color: var(--success);
+        }
+        
+        .notification.error {
+            background-color: var(--danger);
+        }
+        
+        .notification.info {
+            background-color: var(--secondary);
+        }
+        
+        /* ESTADO DB */
+        .db-status {
+            background-color: rgba(255, 255, 255, 0.1);
+            padding: 8px 15px;
+            border-radius: var(--border-radius);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.85rem;
+            margin-left: 20px;
+        }
+        
+        .db-status i {
+            color: var(--primary);
+        }
+        
+        /* RESPONSIVE */
+        @media (max-width: 1024px) {
+            .layout {
+                grid-template-columns: 1fr;
+            }
+            
+            .sidebar {
+                position: static;
+            }
+        }
+        
+        @media (max-width: 768px) {
+            .top-bar {
+                flex-direction: column;
+                gap: 15px;
+                padding: 15px;
+            }
+            
+            .menu {
+                width: 100%;
+                justify-content: center;
+                margin-left: 0;
+            }
+            
+            .search-box {
+                max-width: 100%;
+            }
+            
+            .stats-container {
+                grid-template-columns: 1fr;
+            }
+            
+            .section-header {
+                flex-direction: column;
+                gap: 10px;
+                align-items: flex-start;
+            }
+            
+            .db-status {
+                margin-left: 0;
+                align-self: flex-start;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- HEADER MEJORADO -->
+    <header class="top-bar">
+        <div class="logo">
+            <i class="fas fa-futbol"></i>
+            FútbolStats
+        </div>
+        
+        <div class="search-box">
+            <i class="fas fa-search"></i>
+            <input type="text" id="search-input" placeholder="Buscar equipo, liga...">
+        </div>
+        
+        <nav class="menu">
+            <a href="#" id="nav-matches"><i class="fas fa-futbol"></i> Partidos</a>
+            <a href="#" id="nav-leagues"><i class="fas fa-trophy"></i> Ligas</a>
+            <a href="#" id="nav-stats"><i class="fas fa-chart-bar"></i> Estadísticas</a>
+        </nav>
+        
+        <div class="db-status">
+            <i class="fas fa-database"></i>
+            <span id="db-status-text">Conectando a Supabase...</span>
+        </div>
+    </header>
+    
+    <!-- LAYOUT PRINCIPAL -->
+    <main class="layout">
+        <!-- SIDEBAR -->
+        <aside class="sidebar">
+            <h3><i class="fas fa-trophy"></i> Ligas</h3>
+            <ul class="leagues-list" id="leagues-list">
+                <li class="active" data-id=""><i class="fas fa-globe"></i> Todas las ligas</li>
+                <!-- Las ligas se cargarán dinámicamente aquí -->
+            </ul>
+            
+            <h3><i class="fas fa-filter"></i> Filtros</h3>
+            <div class="filter-group">
+                <label for="country-select"><i class="fas fa-globe-europe"></i> País</label>
+                <select id="country-select">
+                    <option value="">Todos los países</option>
+                </select>
+            </div>
+            
+            <div class="filter-group">
+                <label for="season-select"><i class="fas fa-calendar-alt"></i> Temporada</label>
+                <select id="season-select">
+                    <option value="">Todas las temporadas</option>
+                </select>
+            </div>
+            
+            <button id="load-data-btn">
+                <i class="fas fa-sync-alt"></i> Cargar Estadísticas
+            </button>
+            
+            <button id="refresh-btn" class="secondary">
+                <i class="fas fa-redo"></i> Actualizar Datos
+            </button>
+        </aside>
+        
+        <!-- CONTENIDO PRINCIPAL -->
+        <section class="content">
+            <!-- TARJETAS DE ESTADÍSTICAS -->
+            <div id="stats-cards" class="stats-container">
+                <div class="loader">
+                    <div class="spinner"></div>
+                    <p>Cargando estadísticas...</p>
+                </div>
+            </div>
+            
+            <!-- TABLA DE CLASIFICACIÓN -->
+            <div class="data-section">
+                <div class="section-header">
+                    <h2><i class="fas fa-table"></i> Tabla de Clasificación</h2>
+                    <div id="league-info"></div>
+                </div>
+                <div class="table-container">
+                    <div class="loader">
+                        <div class="spinner"></div>
+                        <p>Cargando tabla de clasificación...</p>
+                    </div>
+                    <table id="standings-table" class="hidden">
+                        <thead>
+                            <tr>
+                                <th>Pos.</th>
+                                <th>Equipo</th>
+                                <th>PJ</th>
+                                <th>PG</th>
+                                <th>PE</th>
+                                <th>PP</th>
+                                <th>GF</th>
+                                <th>GC</th>
+                                <th>DG</th>
+                                <th>Pts.</th>
+                            </tr>
+                        </thead>
+                        <tbody id="standings-body">
+                            <!-- Los datos de la tabla se cargarán aquí -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            
+            <!-- PARTIDOS RECIENTES -->
+            <div class="data-section">
+                <div class="section-header">
+                    <h2><i class="fas fa-history"></i> Partidos Recientes</h2>
+                    <div id="matches-count"></div>
+                </div>
+                <div class="table-container">
+                    <div class="loader">
+                        <div class="spinner"></div>
+                        <p>Cargando partidos recientes...</p>
+                    </div>
+                    <table id="recent-matches-table" class="matches hidden">
+                        <thead>
+                            <tr>
+                                <th>Hora</th>
+                                <th>Local</th>
+                                <th></th>
+                                <th>Visitante</th>
+                                <th>Resultado</th>
+                            </tr>
+                        </thead>
+                        <tbody id="recent-matches-body">
+                            <!-- Los partidos se cargarán aquí -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+    </main>
+    
+    <footer>
+        <p>Estadísticas de fútbol generadas desde <a href="#" id="supabase-link">Supabase</a> • 
+        Datos de ejemplo según el esquema proporcionado • <span id="last-update"></span></p>
+    </footer>
+    
+    <div id="notification" class="notification">
+        <i class="fas fa-check-circle"></i>
+        <span id="notification-text">Operación completada con éxito</span>
+    </div>
+    
+    <script>
+        // Configuración de Supabase
+        const SUPABASE_URL = 'https://mvsnymlcqutxnmnfxdgt.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im12c255bWxjcXV0eG5tbmZ4ZGd0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQ1MjE1ODksImV4cCI6MjA4MDA5NzU4OX0.mNPS7-1YXUUM9XhVYvsg6urhnxP9Zx8BydvsGhD8qBU';
+        
+        // Verificar que Supabase se cargó correctamente
+        console.log('Supabase cargado:', window.supabase);
+        
+        // Inicializar cliente de Supabase
+        let supabase;
+        try {
+            supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+            console.log('Cliente Supabase inicializado correctamente');
+        } catch (error) {
+            console.error('Error inicializando Supabase:', error);
+            showNotification('Error inicializando la conexión con Supabase', 'error');
+        }
+        
+        // Variables globales
+        let countries = [];
+        let leagues = [];
+        let seasons = [];
+        let currentLeagueId = null;
+        let currentSeasonId = null;
+        
+        // Elementos del DOM
+        const countrySelect = document.getElementById('country-select');
+        const seasonSelect = document.getElementById('season-select');
+        const loadDataBtn = document.getElementById('load-data-btn');
+        const refreshBtn = document.getElementById('refresh-btn');
+        const statsCards = document.getElementById('stats-cards');
+        const standingsTable = document.getElementById('standings-table');
+        const standingsBody = document.getElementById('standings-body');
+        const recentMatchesTable = document.getElementById('recent-matches-table');
+        const recentMatchesBody = document.getElementById('recent-matches-body');
+        const leagueInfo = document.getElementById('league-info');
+        const matchesCount = document.getElementById('matches-count');
+        const dbStatusText = document.getElementById('db-status-text');
+        const supabaseLink = document.getElementById('supabase-link');
+        const lastUpdate = document.getElementById('last-update');
+        const notification = document.getElementById('notification');
+        const notificationText = document.getElementById('notification-text');
+        const searchInput = document.getElementById('search-input');
+        const leaguesList = document.getElementById('leagues-list');
+        
+        // Inicializar la página
+        document.addEventListener('DOMContentLoaded', async () => {
+            // Actualizar enlaces
+            supabaseLink.href = SUPABASE_URL;
+            
+            // Configurar fecha de actualización
+            lastUpdate.textContent = `Última actualización: ${new Date().toLocaleDateString('es-ES', { 
+                day: '2-digit', 
+                month: 'long', 
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            })}`;
+            
+            // Configurar navegación
+            document.getElementById('nav-matches').addEventListener('click', (e) => {
+                e.preventDefault();
+                document.querySelector('.data-section:last-child').scrollIntoView({ behavior: 'smooth' });
+            });
+            
+            document.getElementById('nav-leagues').addEventListener('click', (e) => {
+                e.preventDefault();
+                document.querySelector('.data-section:first-child').scrollIntoView({ behavior: 'smooth' });
+            });
+            
+            document.getElementById('nav-stats').addEventListener('click', (e) => {
+                e.preventDefault();
+                document.getElementById('stats-cards').scrollIntoView({ behavior: 'smooth' });
+            });
+            
+            // Configurar búsqueda
+            searchInput.addEventListener('keyup', debounce(handleSearch, 300));
+            
+            // Cargar datos iniciales
+            await loadInitialData();
+            
+            // Configurar eventos
+            setupEventListeners();
+            
+            // Cargar estadísticas por defecto
+            await loadStatistics();
+        });
+        
+        // Cargar datos iniciales (países, ligas)
+        async function loadInitialData() {
+            try {
+                // Verificar que supabase está definido
+                if (!supabase || !supabase.from) {
+                    throw new Error('Cliente Supabase no inicializado correctamente');
+                }
+                
+                // Cargar países
+                const { data: paisesData, error: paisesError } = await supabase
+                    .from('paises')
+                    .select('*')
+                    .order('nombre');
+                    
+                if (paisesError) throw paisesError;
+                
+                countries = paisesData || [];
+                console.log('Países cargados:', countries.length);
+                
+                // Llenar selector de países
+                countrySelect.innerHTML = '<option value="">Todos los países</option>';
+                countries.forEach(country => {
+                    const option = document.createElement('option');
+                    option.value = country.id;
+                    option.textContent = country.nombre;
+                    countrySelect.appendChild(option);
+                });
+                
+                // Cargar ligas activas
+                const { data: ligasData, error: ligasError } = await supabase
+                    .from('ligas')
+                    .select('*, paises(nombre)')
+                    .eq('is_active', true)
+                    .order('nombre');
+                    
+                if (ligasError) throw ligasError;
+                
+                leagues = ligasData || [];
+                console.log('Ligas cargadas:', leagues.length);
+                
+                // Actualizar lista de ligas en el sidebar
+                updateLeaguesList();
+                
+                // Actualizar estado de la base de datos
+                dbStatusText.innerHTML = `<i class="fas fa-check-circle"></i> Conectado a Supabase (${countries.length} países, ${leagues.length} ligas)`;
+                
+                // Mostrar notificación de éxito
+                showNotification('Conexión establecida con Supabase', 'success');
+                
+            } catch (error) {
+                console.error('Error cargando datos iniciales:', error);
+                dbStatusText.innerHTML = `<i class="fas fa-exclamation-triangle"></i> Error de conexión: ${error.message}`;
+                showNotification(`Error conectando a Supabase: ${error.message}`, 'error');
+                
+                // Cargar datos de ejemplo como fallback
+                setTimeout(() => {
+                    if (countries.length === 0) {
+                        loadSampleData();
+                    }
+                }, 2000);
+            }
+        }
+        
+        // Actualizar lista de ligas en el sidebar
+        function updateLeaguesList() {
+            leaguesList.innerHTML = '';
+            
+            // Añadir opción "Todas las ligas"
+            const allItem = document.createElement('li');
+            allItem.className = 'active';
+            allItem.dataset.id = '';
+            allItem.innerHTML = '<i class="fas fa-globe"></i> Todas las ligas';
+            allItem.addEventListener('click', () => {
+                // Remover clase active de todos los items
+                document.querySelectorAll('.leagues-list li').forEach(item => {
+                    item.classList.remove('active');
+                });
+                allItem.classList.add('active');
+                currentLeagueId = null;
+                seasonSelect.innerHTML = '<option value="">Todas las temporadas</option>';
+                loadStatistics();
+            });
+            leaguesList.appendChild(allItem);
+            
+            // Añadir ligas
+            leagues.forEach(league => {
+                const li = document.createElement('li');
+                li.dataset.id = league.id;
+                li.innerHTML = `<i class="fas fa-trophy"></i> ${league.nombre}`;
+                
+                li.addEventListener('click', () => {
+                    // Remover clase active de todos los items
+                    document.querySelectorAll('.leagues-list li').forEach(item => {
+                        item.classList.remove('active');
+                    });
+                    li.classList.add('active');
+                    
+                    // Actualizar liga seleccionada
+                    currentLeagueId = league.id;
+                    
+                    // Actualizar selector de países
+                    countrySelect.value = league.pais_id;
+                    
+                    // Cargar temporadas de esta liga
+                    loadSeasonsForLeague(league.id);
+                });
+                
+                leaguesList.appendChild(li);
+            });
+        }
+        
+        // Configurar event listeners
+        function setupEventListeners() {
+            // Cuando se selecciona un país, filtrar lista de ligas
+            countrySelect.addEventListener('change', async () => {
+                const countryId = countrySelect.value;
+                
+                // Limpiar selector de temporadas
+                seasonSelect.innerHTML = '<option value="">Todas las temporadas</option>';
+                
+                if (countryId) {
+                    // Filtrar ligas por país
+                    const filteredLeagues = leagues.filter(league => league.pais_id == countryId);
+                    
+                    // Actualizar lista de ligas en el sidebar
+                    updateFilteredLeaguesList(filteredLeagues);
+                } else {
+                    // Mostrar todas las ligas
+                    updateLeaguesList();
+                }
+            });
+            
+            // Cuando se selecciona una temporada, cargar estadísticas
+            seasonSelect.addEventListener('change', async () => {
+                if (currentLeagueId || seasonSelect.value) {
+                    await loadStatistics();
+                }
+            });
+            
+            // Botón para cargar estadísticas
+            loadDataBtn.addEventListener('click', async () => {
+                await loadStatistics();
+            });
+            
+            // Botón para refrescar datos
+            refreshBtn.addEventListener('click', async () => {
+                await loadStatistics(true);
+            });
+        }
+        
+        // Actualizar lista de ligas filtradas
+        function updateFilteredLeaguesList(filteredLeagues) {
+            leaguesList.innerHTML = '';
+            
+            // Añadir opción "Todas las ligas"
+            const allItem = document.createElement('li');
+            allItem.className = 'active';
+            allItem.dataset.id = '';
+            allItem.innerHTML = '<i class="fas fa-globe"></i> Todas las ligas';
+            allItem.addEventListener('click', () => {
+                // Remover clase active de todos los items
+                document.querySelectorAll('.leagues-list li').forEach(item => {
+                    item.classList.remove('active');
+                });
+                allItem.classList.add('active');
+                currentLeagueId = null;
+                seasonSelect.innerHTML = '<option value="">Todas las temporadas</option>';
+                loadStatistics();
+            });
+            leaguesList.appendChild(allItem);
+            
+            // Añadir ligas filtradas
+            filteredLeagues.forEach(league => {
+                const li = document.createElement('li');
+                li.dataset.id = league.id;
+                li.innerHTML = `<i class="fas fa-trophy"></i> ${league.nombre}`;
+                
+                li.addEventListener('click', () => {
+                    // Remover clase active de todos los items
+                    document.querySelectorAll('.leagues-list li').forEach(item => {
+                        item.classList.remove('active');
+                    });
+                    li.classList.add('active');
+                    
+                    // Actualizar liga seleccionada
+                    currentLeagueId = league.id;
+                    
+                    // Cargar temporadas de esta liga
+                    loadSeasonsForLeague(league.id);
+                });
+                
+                leaguesList.appendChild(li);
+            });
+        }
+        
+        // Cargar temporadas para una liga
+        async function loadSeasonsForLeague(leagueId) {
+            try {
+                // Cargar temporadas de la liga seleccionada
+                const { data: temporadasData, error: temporadasError } = await supabase
+                    .from('temporadas')
+                    .select('*')
+                    .eq('liga_id', leagueId)
+                    .order('nombre', { ascending: false });
+                    
+                if (temporadasError) throw temporadasError;
+                
+                seasons = temporadasData || [];
+                
+                // Llenar selector de temporadas
+                seasonSelect.innerHTML = '<option value="">Todas las temporadas</option>';
+                seasons.forEach(season => {
+                    const option = document.createElement('option');
+                    option.value = season.id;
+                    option.textContent = season.nombre;
+                    if (season.is_current) {
+                        option.textContent += ' (Actual)';
+                    }
+                    seasonSelect.appendChild(option);
+                });
+                
+                // Seleccionar automáticamente la temporada actual si existe
+                const currentSeason = seasons.find(s => s.is_current);
+                if (currentSeason) {
+                    seasonSelect.value = currentSeason.id;
+                    await loadStatistics();
+                }
+            } catch (error) {
+                console.error('Error cargando temporadas:', error);
+                showNotification('Error cargando temporadas', 'error');
+            }
+        }
+        
+        // Cargar estadísticas
+        async function loadStatistics(forceRefresh = false) {
+            const leagueId = currentLeagueId;
+            const seasonId = seasonSelect.value;
+            
+            // Actualizar variables globales
+            currentSeasonId = seasonId || null;
+            
+            // Mostrar loader
+            statsCards.innerHTML = `
+                <div class="loader">
+                    <div class="spinner"></div>
+                    <p>Cargando estadísticas...</p>
+                </div>
+            `;
+            
+            standingsTable.classList.add('hidden');
+            standingsBody.innerHTML = '';
+            
+            recentMatchesTable.classList.add('hidden');
+            recentMatchesBody.innerHTML = '';
+            
+            try {
+                // Verificar que supabase está disponible
+                if (!supabase || !supabase.from) {
+                    throw new Error('Cliente Supabase no disponible');
+                }
+                
+                // Cargar datos generales
+                const [totalMatches, totalLeagues, totalTeams, recentMatchesData] = await Promise.all([
+                    getTotalMatches(leagueId, seasonId),
+                    getTotalLeagues(leagueId),
+                    getTotalTeams(),
+                    getRecentMatches(leagueId, seasonId)
+                ]);
+                
+                // Actualizar tarjetas de estadísticas
+                updateStatsCards(totalMatches, totalLeagues, totalTeams);
+                
+                // Actualizar tabla de clasificación si hay liga y temporada seleccionada
+                if (leagueId && seasonId) {
+                    await updateStandingsTable(leagueId, seasonId);
+                } else if (leagueId) {
+                    // Si solo hay liga seleccionada, mostrar mensaje
+                    leagueInfo.textContent = 'Selecciona una temporada para ver la tabla de clasificación';
+                } else {
+                    leagueInfo.textContent = 'Selecciona una liga y temporada para ver la tabla de clasificación';
+                }
+                
+                // Actualizar partidos recientes
+                updateRecentMatches(recentMatchesData);
+                
+                // Actualizar contador de partidos
+                matchesCount.textContent = `${recentMatchesData.length} partidos`;
+                
+                // Mostrar notificación
+                if (forceRefresh) {
+                    showNotification('Datos actualizados correctamente', 'success');
+                }
+                
+            } catch (error) {
+                console.error('Error cargando estadísticas:', error);
+                showNotification(`Error cargando estadísticas: ${error.message}`, 'error');
+                
+                // Cargar datos de ejemplo
+                loadSampleData();
+            }
+        }
+        
+        // Obtener total de partidos
+        async function getTotalMatches(leagueId = null, seasonId = null) {
+            try {
+                let query = supabase
+                    .from('partidos')
+                    .select('id', { count: 'exact', head: true });
+                    
+                if (seasonId) {
+                    query = query.eq('temporada_id', seasonId);
+                } else if (leagueId) {
+                    // Primero obtenemos las temporadas de la liga
+                    const { data: temporadas, error: tempError } = await supabase
+                        .from('temporadas')
+                        .select('id')
+                        .eq('liga_id', leagueId);
+                    
+                    if (tempError) throw tempError;
+                    
+                    const temporadaIds = temporadas.map(t => t.id);
+                    query = query.in('temporada_id', temporadaIds);
+                }
+                
+                const { count, error } = await query;
+                
+                if (error) throw error;
+                return count || 0;
+            } catch (error) {
+                console.error('Error obteniendo total de partidos:', error);
+                return 0;
+            }
+        }
+        
+        // Obtener total de ligas
+        async function getTotalLeagues(leagueId = null) {
+            try {
+                let query = supabase
+                    .from('ligas')
+                    .select('id', { count: 'exact', head: true })
+                    .eq('is_active', true);
+                    
+                if (leagueId) {
+                    query = query.eq('id', leagueId);
+                }
+                
+                const { count, error } = await query;
+                
+                if (error) throw error;
+                return count || 0;
+            } catch (error) {
+                console.error('Error obteniendo total de ligas:', error);
+                return 0;
+            }
+        }
+        
+        // Obtener total de equipos
+        async function getTotalTeams() {
+            try {
+                const { count, error } = await supabase
+                    .from('equipos')
+                    .select('id', { count: 'exact', head: true });
+                    
+                if (error) throw error;
+                return count || 0;
+            } catch (error) {
+                console.error('Error obteniendo total de equipos:', error);
+                return 0;
+            }
+        }
+        
+        // Obtener partidos recientes
+        async function getRecentMatches(leagueId = null, seasonId = null) {
+            try {
+                let query = supabase
+                    .from('partidos')
+                    .select(`
+                        *,
+                        temporadas!inner(*, ligas!inner(*)),
+                        local_id(nombre),
+                        visitante_id(nombre)
+                    `)
+                    .order('fecha', { ascending: false })
+                    .limit(10);
+                    
+                if (seasonId) {
+                    query = query.eq('temporada_id', seasonId);
+                } else if (leagueId) {
+                    query = query.eq('temporadas.liga_id', leagueId);
+                }
+                
+                const { data, error } = await query;
+                
+                if (error) throw error;
+                return data || [];
+            } catch (error) {
+                console.error('Error obteniendo partidos recientes:', error);
+                return [];
+            }
+        }
+        
+        // Actualizar tarjetas de estadísticas
+        function updateStatsCards(totalMatches, totalLeagues, totalTeams) {
+            const statsData = [
+                {
+                    icon: 'fas fa-futbol',
+                    title: 'Partidos Totales',
+                    value: totalMatches.toLocaleString('es-ES'),
+                    description: 'Partidos registrados en la base de datos'
+                },
+                {
+                    icon: 'fas fa-trophy',
+                    title: 'Ligas Activas',
+                    value: totalLeagues.toLocaleString('es-ES'),
+                    description: 'Ligas disponibles para consulta'
+                },
+                {
+                    icon: 'fas fa-users',
+                    title: 'Equipos Registrados',
+                    value: totalTeams.toLocaleString('es-ES'),
+                    description: 'Equipos en la base de datos'
+                },
+                {
+                    icon: 'fas fa-calendar-check',
+                    title: 'Temporadas',
+                    value: seasons.length.toLocaleString('es-ES'),
+                    description: 'Temporadas disponibles'
+                }
+            ];
+            
+            statsCards.innerHTML = '';
+            
+            statsData.forEach(stat => {
+                const statCard = document.createElement('div');
+                statCard.className = 'stat-card';
+                statCard.innerHTML = `
+                    <h3><i class="${stat.icon}"></i> ${stat.title}</h3>
+                    <div class="stat-value">${stat.value}</div>
+                    <div class="stat-detail">${stat.description}</div>
+                `;
+                statsCards.appendChild(statCard);
+            });
+        }
+        
+        // Actualizar tabla de clasificación
+        async function updateStandingsTable(leagueId, seasonId) {
+            try {
+                // Obtener todos los partidos de la temporada
+                const { data: matches, error: matchesError } = await supabase
+                    .from('partidos')
+                    .select(`
+                        *,
+                        local_id(id, nombre),
+                        visitante_id(id, nombre)
+                    `)
+                    .eq('temporada_id', seasonId)
+                    .eq('status', 'FINISHED');
+                    
+                if (matchesError) throw matchesError;
+                
+                // Si no hay partidos, mostrar mensaje
+                if (!matches || matches.length === 0) {
+                    leagueInfo.innerHTML = `
+                        <span>No hay partidos en esta temporada</span>
+                    `;
+                    standingsBody.innerHTML = `
+                        <tr>
+                            <td colspan="10" style="text-align: center; padding: 40px;">
+                                No hay datos de partidos para esta temporada
+                            </td>
+                        </tr>
+                    `;
+                    standingsTable.classList.remove('hidden');
+                    return;
+                }
+                
+                // Calcular estadísticas por equipo
+                const teamStats = {};
+                
+                matches.forEach(match => {
+                    const localId = match.local_id.id;
+                    const visitanteId = match.visitante_id.id;
+                    
+                    // Inicializar estadísticas del equipo local si no existen
+                    if (!teamStats[localId]) {
+                        teamStats[localId] = {
+                            id: localId,
+                            nombre: match.local_id.nombre,
+                            PJ: 0, PG: 0, PE: 0, PP: 0,
+                            GF: 0, GC: 0, DG: 0, Pts: 0
+                        };
+                    }
+                    
+                    // Inicializar estadísticas del equipo visitante si no existen
+                    if (!teamStats[visitanteId]) {
+                        teamStats[visitanteId] = {
+                            id: visitanteId,
+                            nombre: match.visitante_id.nombre,
+                            PJ: 0, PG: 0, PE: 0, PP: 0,
+                            GF: 0, GC: 0, DG: 0, Pts: 0
+                        };
+                    }
+                    
+                    // Actualizar estadísticas del partido
+                    const gLocal = (match.g_local_1t || 0) + (match.g_local_2t || 0);
+                    const gVisitante = (match.g_visitante_1t || 0) + (match.g_visitante_2t || 0);
+                    
+                    // Equipo local
+                    teamStats[localId].PJ++;
+                    teamStats[localId].GF += gLocal;
+                    teamStats[localId].GC += gVisitante;
+                    teamStats[localId].DG = teamStats[localId].GF - teamStats[localId].GC;
+                    
+                    // Equipo visitante
+                    teamStats[visitanteId].PJ++;
+                    teamStats[visitanteId].GF += gVisitante;
+                    teamStats[visitanteId].GC += gLocal;
+                    teamStats[visitanteId].DG = teamStats[visitanteId].GF - teamStats[visitanteId].GC;
+                    
+                    // Determinar resultado y asignar puntos
+                    if (gLocal > gVisitante) {
+                        teamStats[localId].PG++;
+                        teamStats[localId].Pts += 3;
+                        teamStats[visitanteId].PP++;
+                    } else if (gLocal < gVisitante) {
+                        teamStats[visitanteId].PG++;
+                        teamStats[visitanteId].Pts += 3;
+                        teamStats[localId].PP++;
+                    } else {
+                        teamStats[localId].PE++;
+                        teamStats[localId].Pts += 1;
+                        teamStats[visitanteId].PE++;
+                        teamStats[visitanteId].Pts += 1;
+                    }
+                });
+                
+                // Convertir objeto a array y ordenar por puntos (y diferencia de goles)
+                const standingsArray = Object.values(teamStats);
+                standingsArray.sort((a, b) => {
+                    if (b.Pts !== a.Pts) return b.Pts - a.Pts;
+                    if (b.DG !== a.DG) return b.DG - a.DG;
+                    return b.GF - a.GF;
+                });
+                
+                // Actualizar información de la liga
+                const selectedLeague = leagues.find(league => league.id == leagueId);
+                const selectedSeason = seasons.find(season => season.id == seasonId);
+                
+                leagueInfo.innerHTML = `
+                    <span>${selectedLeague?.nombre || 'Liga'} - ${selectedSeason?.nombre || 'Temporada'}</span>
+                `;
+                
+                // Actualizar tabla
+                standingsBody.innerHTML = '';
+                
+                standingsArray.forEach((team, index) => {
+                    const row = document.createElement('tr');
+                    
+                    row.innerHTML = `
+                        <td><strong>${index + 1}</strong></td>
+                        <td>
+                            <div class="team-cell">
+                                <div class="team-logo">
+                                    <i class="fas fa-user"></i>
+                                </div>
+                                <span>${team.nombre}</span>
+                            </div>
+                        </td>
+                        <td>${team.PJ}</td>
+                        <td>${team.PG}</td>
+                        <td>${team.PE}</td>
+                        <td>${team.PP}</td>
+                        <td>${team.GF}</td>
+                        <td>${team.GC}</td>
+                        <td>${team.DG > 0 ? '+' : ''}${team.DG}</td>
+                        <td><strong>${team.Pts}</strong></td>
+                    `;
+                    
+                    standingsBody.appendChild(row);
+                });
+                
+                // Mostrar tabla
+                standingsTable.classList.remove('hidden');
+                
+            } catch (error) {
+                console.error('Error actualizando tabla de clasificación:', error);
+                leagueInfo.textContent = 'Error cargando la tabla de clasificación';
+                
+                // Mostrar datos de ejemplo como fallback
+                updateSampleStandings();
+            }
+        }
+        
+        // Actualizar partidos recientes en formato tabla
+        function updateRecentMatches(matches) {
+            if (!matches || matches.length === 0) {
+                recentMatchesBody.innerHTML = `
+                    <tr>
+                        <td colspan="5" style="text-align: center; padding: 40px;">
+                            No hay partidos recientes para mostrar
+                        </td>
+                    </tr>
+                `;
+                recentMatchesTable.classList.remove('hidden');
+                return;
+            }
+            
+            recentMatchesBody.innerHTML = '';
+            
+            matches.forEach(match => {
+                const matchDate = new Date(match.fecha);
+                const formattedTime = matchDate.toLocaleTimeString('es-ES', {
+                    hour: '2-digit',
+                    minute: '2-digit'
+                });
+                
+                const gLocal = (match.g_local_1t || 0) + (match.g_local_2t || 0);
+                const gVisitante = (match.g_visitante_1t || 0) + (match.g_visitante_2t || 0);
+                
+                const row = document.createElement('tr');
+                
+                row.innerHTML = `
+                    <td>${formattedTime}</td>
+                    <td>
+                        <div class="team-cell">
+                            <div class="team-logo">
+                                <i class="fas fa-user"></i>
+                            </div>
+                            <span>${match.local_id.nombre}</span>
+                        </div>
+                    </td>
+                    <td>vs</td>
+                    <td>
+                        <div class="team-cell">
+                            <div class="team-logo">
+                                <i class="fas fa-user"></i>
+                            </div>
+                            <span>${match.visitante_id.nombre}</span>
+                        </div>
+                    </td>
+                    <td><strong>${gLocal} - ${gVisitante}</strong></td>
+                `;
+                
+                recentMatchesBody.appendChild(row);
+            });
+            
+            recentMatchesTable.classList.remove('hidden');
+        }
+        
+        // Función para manejar búsqueda
+        function handleSearch() {
+            const searchTerm = searchInput.value.toLowerCase();
+            
+            if (searchTerm.length < 2) return;
+            
+            // Filtrar ligas por término de búsqueda
+            const filteredLeagues = leagues.filter(league => 
+                league.nombre.toLowerCase().includes(searchTerm) ||
+                (league.paises && league.paises.nombre.toLowerCase().includes(searchTerm))
+            );
+            
+            // Actualizar lista de ligas en el sidebar
+            updateFilteredLeaguesList(filteredLeagues);
+            
+            // Mostrar notificación
+            if (filteredLeagues.length > 0) {
+                showNotification(`Se encontraron ${filteredLeagues.length} ligas`, 'info');
+            } else {
+                showNotification('No se encontraron ligas con ese criterio', 'warning');
+            }
+        }
+        
+        // Debounce para búsqueda
+        function debounce(func, wait) {
+            let timeout;
+            return function executedFunction(...args) {
+                const later = () => {
+                    clearTimeout(timeout);
+                    func(...args);
+                };
+                clearTimeout(timeout);
+                timeout = setTimeout(later, wait);
+            };
+        }
+        
+        // Mostrar notificación
+        function showNotification(message, type = 'info') {
+            notification.className = `notification ${type}`;
+            
+            // Cambiar icono según el tipo
+            let icon = 'fas fa-info-circle';
+            if (type === 'success') icon = 'fas fa-check-circle';
+            if (type === 'error') icon = 'fas fa-exclamation-triangle';
+            
+            notification.innerHTML = `<i class="${icon}"></i> <span id="notification-text">${message}</span>`;
+            
+            // Mostrar notificación
+            notification.classList.add('show');
+            
+            // Ocultar después de 3 segundos
+            setTimeout(() => {
+                notification.classList.remove('show');
+            }, 3000);
+        }
+        
+        // Función para cargar datos de ejemplo si no hay conexión a Supabase
+        function loadSampleData() {
+            console.log('Cargando datos de ejemplo...');
+            
+            // Datos de ejemplo para países
+            countries = [
+                { id: 1, nombre: 'España' },
+                { id: 2, nombre: 'Inglaterra' },
+                { id: 3, nombre: 'Italia' },
+                { id: 4, nombre: 'Alemania' }
+            ];
+            
+            // Datos de ejemplo para ligas
+            leagues = [
+                { id: 1, nombre: 'La Liga', pais_id: 1, paises: { nombre: 'España' }, is_active: true },
+                { id: 2, nombre: 'Premier League', pais_id: 2, paises: { nombre: 'Inglaterra' }, is_active: true },
+                { id: 3, nombre: 'Serie A', pais_id: 3, paises: { nombre: 'Italia' }, is_active: true },
+                { id: 4, nombre: 'Bundesliga', pais_id: 4, paises: { nombre: 'Alemania' }, is_active: true }
+            ];
+            
+            // Datos de ejemplo para temporadas
+            seasons = [
+                { id: 1, nombre: '2023/24', liga_id: 1, is_current: true },
+                { id: 2, nombre: '2022/23', liga_id: 1, is_current: false }
+            ];
+            
+            // Llenar selectores
+            countrySelect.innerHTML = '<option value="">Todos los países</option>';
+            countries.forEach(country => {
+                const option = document.createElement('option');
+                option.value = country.id;
+                option.textContent = country.nombre;
+                countrySelect.appendChild(option);
+            });
+            
+            // Actualizar lista de ligas
+            updateLeaguesList();
+            
+            // Actualizar estado
+            dbStatusText.innerHTML = `<i class="fas fa-exclamation-triangle"></i> Modo demostración (datos de ejemplo)`;
+            showNotification('Usando datos de ejemplo para demostración', 'warning');
+            
+            // Cargar estadísticas de ejemplo
+            updateStatsCards(127, 4, 32);
+            
+            // Actualizar tabla de clasificación de ejemplo
+            updateSampleStandings();
+            
+            // Actualizar partidos recientes de ejemplo
+            updateSampleRecentMatches();
+        }
+        
+        // Actualizar tabla de clasificación de ejemplo
+        function updateSampleStandings() {
+            const sampleStandings = [
+                { nombre: 'Real Madrid', PJ: 10, PG: 8, PE: 1, PP: 1, GF: 24, GC: 8, DG: 16, Pts: 25 },
+                { nombre: 'Barcelona', PJ: 10, PG: 7, PE: 2, PP: 1, GF: 22, GC: 10, DG: 12, Pts: 23 },
+                { nombre: 'Atlético Madrid', PJ: 10, PG: 6, PE: 3, PP: 1, GF: 18, GC: 9, DG: 9, Pts: 21 },
+                { nombre: 'Sevilla', PJ: 10, PG: 5, PE: 3, PP: 2, GF: 15, GC: 11, DG: 4, Pts: 18 },
+                { nombre: 'Real Sociedad', PJ: 10, PG: 4, PE: 4, PP: 2, GF: 14, GC: 12, DG: 2, Pts: 16 }
+            ];
+            
+            leagueInfo.innerHTML = `
+                <span>La Liga - Temporada 2023/24 (Ejemplo)</span>
+            `;
+            
+            standingsBody.innerHTML = '';
+            
+            sampleStandings.forEach((team, index) => {
+                const row = document.createElement('tr');
+                
+                row.innerHTML = `
+                    <td><strong>${index + 1}</strong></td>
+                    <td>
+                        <div class="team-cell">
+                            <div class="team-logo">
+                                <i class="fas fa-user"></i>
+                            </div>
+                            <span>${team.nombre}</span>
+                        </div>
+                    </td>
+                    <td>${team.PJ}</td>
+                    <td>${team.PG}</td>
+                    <td>${team.PE}</td>
+                    <td>${team.PP}</td>
+                    <td>${team.GF}</td>
+                    <td>${team.GC}</td>
+                    <td>${team.DG > 0 ? '+' : ''}${team.DG}</td>
+                    <td><strong>${team.Pts}</strong></td>
+                `;
+                
+                standingsBody.appendChild(row);
+            });
+            
+            standingsTable.classList.remove('hidden');
+        }
+        
+        // Actualizar partidos recientes de ejemplo
+        function updateSampleRecentMatches() {
+            const sampleMatches = [
+                {
+                    fecha: '2023-10-28T15:00:00',
+                    local_id: { nombre: 'Real Madrid' },
+                    visitante_id: { nombre: 'Barcelona' },
+                    g_local_1t: 1,
+                    g_local_2t: 1,
+                    g_visitante_1t: 0,
+                    g_visitante_2t: 1,
+                    status: 'FINISHED'
+                },
+                {
+                    fecha: '2023-10-25T17:30:00',
+                    local_id: { nombre: 'Arsenal' },
+                    visitante_id: { nombre: 'Chelsea' },
+                    g_local_1t: 2,
+                    g_local_2t: 0,
+                    g_visitante_1t: 1,
+                    g_visitante_2t: 0,
+                    status: 'FINISHED'
+                },
+                {
+                    fecha: '2023-10-22T20:00:00',
+                    local_id: { nombre: 'Barcelona' },
+                    visitante_id: { nombre: 'Atlético' },
+                    g_local_1t: 1,
+                    g_local_2t: 0,
+                    g_visitante_1t: 0,
+                    g_visitante_2t: 1,
+                    status: 'FINISHED'
+                }
+            ];
+            
+            recentMatchesBody.innerHTML = '';
+            
+            sampleMatches.forEach(match => {
+                const matchDate = new Date(match.fecha);
+                const formattedTime = matchDate.toLocaleTimeString('es-ES', {
+                    hour: '2-digit',
+                    minute: '2-digit'
+                });
+                
+                const gLocal = (match.g_local_1t || 0) + (match.g_local_2t || 0);
+                const gVisitante = (match.g_visitante_1t || 0) + (match.g_visitante_2t || 0);
+                
+                const row = document.createElement('tr');
+                
+                row.innerHTML = `
+                    <td>${formattedTime}</td>
+                    <td>
+                        <div class="team-cell">
+                            <div class="team-logo">
+                                <i class="fas fa-user"></i>
+                            </div>
+                            <span>${match.local_id.nombre}</span>
+                        </div>
+                    </td>
+                    <td>vs</td>
+                    <td>
+                        <div class="team-cell">
+                            <div class="team-logo">
+                                <i class="fas fa-user"></i>
+                            </div>
+                            <span>${match.visitante_id.nombre}</span>
+                        </div>
+                    </td>
+                    <td><strong>${gLocal} - ${gVisitante}</strong></td>
+                `;
+                
+                recentMatchesBody.appendChild(row);
+            });
+            
+            recentMatchesTable.classList.remove('hidden');
+            matchesCount.textContent = `${sampleMatches.length} partidos (ejemplo)`;
+        }
+    </script>
+</body>
+</html>

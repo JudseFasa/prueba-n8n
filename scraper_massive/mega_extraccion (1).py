@@ -15,6 +15,64 @@ RETRIES = 2
 MAX_TEMPORADAS = 5
 
 # ======================================
+# ESTADÍSTICAS GLOBALES
+# ======================================
+class Stats:
+    temporadas_procesadas = 0
+    temporadas_totales = 0
+    fases_detectadas = 0
+    partidos_extraidos = 0
+    partidos_procesados = 0
+    partidos_con_goles = 0
+    errores = 0
+    ligas_procesadas = 0
+    ligas_totales = 0
+    
+    @classmethod
+    def reset(cls):
+        """Reinicia estadísticas para una nueva ejecución"""
+        cls.temporadas_procesadas = 0
+        cls.temporadas_totales = 0
+        cls.fases_detectadas = 0
+        cls.partidos_extraidos = 0
+        cls.partidos_procesados = 0
+        cls.partidos_con_goles = 0
+        cls.errores = 0
+        cls.ligas_procesadas = 0
+        cls.ligas_totales = 0
+
+# ======================================
+# MONITOR DE ESTADO
+# ======================================
+async def monitor(intervalo=30):
+    """
+    Muestra el estado del scraping cada X segundos
+    Se ejecuta como tarea en segundo plano
+    """
+    print("\n📊 Iniciando monitor de estado...")
+    while True:
+        await asyncio.sleep(intervalo)
+        print(f"""
+⏱ Estado actual:
+  Ligas:           {Stats.ligas_procesadas}/{Stats.ligas_totales}
+  Temporadas:      {Stats.temporadas_procesadas}/{Stats.temporadas_totales}
+  Fases detectadas:{Stats.fases_detectadas}
+  Partidos:        {Stats.partidos_procesados} procesados / {Stats.partidos_extraidos} extraídos
+  Con goles:       {Stats.partidos_con_goles}
+  Errores:         {Stats.errores}
+""")
+
+# ======================================
+# PALABRAS CLAVE PARA DETECTAR FASES ESPECIALES
+# ======================================
+PALABRAS_CLAVE_FASES = [
+    "cuadrangular", "play off", "play-off", "playoffs",
+    "conference", "descenso", "grupo de campeonato",
+    "clausura", "apertura", "final", "liguilla", "play-out",
+    "tournament", "championship", "promotion", "relegation"
+]
+
+# ======================================
 # URL HELPERS SIMPLIFICADOS
 # ======================================
 def construir_url_resultados(url_base):
@@ -56,6 +114,7 @@ def init_db(db_name):
             pais TEXT,
             liga TEXT,
             temporada TEXT,
+            fase TEXT,
             jornada INTEGER,
             fecha TEXT,
             local TEXT,
@@ -68,26 +127,26 @@ def init_db(db_name):
             minutos_visitante_1t TEXT,
             minutos_local_2t TEXT,
             minutos_visitante_2t TEXT,
-            UNIQUE(pais, liga, temporada, jornada, fecha, local, visitante)
+            UNIQUE(pais, liga, temporada, fase, jornada, fecha, local, visitante)
         )
     """)
     conn.commit()
     conn.close()
 
-def save_empty_match(db_name, pais, liga, temporada, jornada, fecha, local, visitante):
+def save_empty_match(db_name, pais, liga, temporada, fase, jornada, fecha, local, visitante):
     conn = sqlite3.connect(db_name)
     c = conn.cursor()
     c.execute("""
         INSERT OR IGNORE INTO partidos
-        (pais, liga, temporada, jornada, fecha, local, visitante,
+        (pais, liga, temporada, fase, jornada, fecha, local, visitante,
          g_local_1t, g_visitante_1t, g_local_2t, g_visitante_2t,
          minutos_local_1t, minutos_visitante_1t, minutos_local_2t, minutos_visitante_2t)
-        VALUES (?, ?, ?, ?, ?, ?, ?, NULL, NULL, NULL, NULL, '', '', '', '')
-    """,(pais, liga, temporada, jornada, fecha, local, visitante))
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, NULL, NULL, '', '', '', '')
+    """,(pais, liga, temporada, fase, jornada, fecha, local, visitante))
     conn.commit()
     conn.close()
 
-def update_match(db_name, pais, liga, temporada, jornada, fecha, local, visitante, datos):
+def update_match(db_name, pais, liga, temporada, fase, jornada, fecha, local, visitante, datos):
     conn = sqlite3.connect(db_name)
     c = conn.cursor()
     c.execute("""
@@ -95,14 +154,14 @@ def update_match(db_name, pais, liga, temporada, jornada, fecha, local, visitant
             g_local_1t = ?, g_visitante_1t = ?, g_local_2t = ?, g_visitante_2t = ?,
             minutos_local_1t = ?, minutos_visitante_1t = ?,
             minutos_local_2t = ?, minutos_visitante_2t = ?
-        WHERE pais = ? AND liga = ? AND temporada = ? AND jornada = ?
+        WHERE pais = ? AND liga = ? AND temporada = ? AND fase = ? AND jornada = ?
           AND fecha = ? AND local = ? AND visitante = ?
     """,(
         datos["g_local_1t"], datos["g_visitante_1t"],
         datos["g_local_2t"], datos["g_visitante_2t"],
         datos["minutos_local_1t"], datos["minutos_visitante_1t"],
         datos["minutos_local_2t"], datos["minutos_visitante_2t"],
-        pais, liga, temporada, jornada, fecha, local, visitante
+        pais, liga, temporada, fase, jornada, fecha, local, visitante
     ))
     conn.commit()
     conn.close()
@@ -168,12 +227,9 @@ async def click_mostrar_mas_partidos(page):
         try:
             await boton.scroll_into_view_if_needed()
             await boton.click()
-            print(f"    🔽 Clic {i+1} en 'Mostrar más partidos'")
             await asyncio.sleep(1)
         except:
             break
-    
-    print("    ✅ Todos los partidos cargados")
 
 async def extraer_detalles(detail_page):
     try:
@@ -232,6 +288,74 @@ async def extraer_detalles(detail_page):
         "minutos_visitante_2t": ", ".join(sorted(goles[1][1], key=orden)),
     }
 
+# ======================================
+# FUNCIONES PARA DETECTAR FASES
+# ======================================
+
+async def extraer_fases_y_partidos(page, liga_nombre):
+    """Extrae información de fases y partidos con estadísticas"""
+    
+    # Usamos la lógica de prueba.py para detectar fases
+    fases_y_partidos = await page.evaluate(f"""
+    () => {{
+        const palabrasClave = {PALABRAS_CLAVE_FASES};
+        const resultados = [];
+        let faseActual = "Regular Season";  // Fase por defecto
+        
+        const elementos = document.querySelectorAll(
+            'div.headerLeague__wrapper, div[class*="event__match"]'
+        );
+        
+        for (const el of elementos) {{
+            if (el.className.includes("headerLeague__wrapper")) {{
+                const titulo = el.querySelector("strong.headerLeague__title-text");
+                if (!titulo) continue;
+                
+                faseActual = titulo.textContent.trim();
+                
+                // Verificar si es una fase especial
+                const esEspecial = palabrasClave.some(palabra => 
+                    faseActual.toLowerCase().includes(palabra.toLowerCase())
+                );
+                
+                if (esEspecial) {{
+                    console.log("Fase especial detectada:", faseActual);
+                }}
+            }} else if (el.className.includes("event__match")) {{
+                const fecha = el.querySelector('.event__time')?.textContent?.trim() || '';
+                const local = el.querySelector('.event__homeParticipant')?.textContent?.trim() || '';
+                const visitante = el.querySelector('.event__awayParticipant')?.textContent?.trim() || '';
+                const linkElem = el.querySelector('a.eventRowLink');
+                const href = linkElem ? linkElem.getAttribute('href') : null;
+                const idPartido = el.getAttribute('id');
+                
+                if (local && visitante) {{
+                    resultados.push({{
+                        fase: faseActual,
+                        fecha: fecha,
+                        local: local,
+                        visitante: visitante,
+                        href: href || (idPartido && idPartido.startsWith('g_') ? `/partido/${{idPartido.replace('g_','')}}/` : null)
+                    }});
+                }}
+            }}
+        }}
+        
+        return resultados;
+    }}
+    """)
+    
+    # Agrupar partidos por fase para estadísticas
+    resumen_fases = {}
+    for partido in fases_y_partidos:
+        fase = partido['fase']
+        resumen_fases[fase] = resumen_fases.get(fase, 0) + 1
+    
+    # Actualizar estadísticas globales
+    Stats.fases_detectadas += len(resumen_fases)
+    
+    return fases_y_partidos
+
 async def obtener_temporadas_archivo(context, url_base, max_temporadas=4):
     """Obtiene temporadas pasadas desde la página de archivo"""
     page = await context.new_page()
@@ -240,7 +364,6 @@ async def obtener_temporadas_archivo(context, url_base, max_temporadas=4):
     try:
         # Construir URL de archivo
         archivo_url = construir_url_archivo(url_base)
-        print(f"  📂 Accediendo a: {archivo_url}")
         
         await page.goto(archivo_url, timeout=PAGE_TIMEOUT, wait_until="networkidle")
         
@@ -249,8 +372,6 @@ async def obtener_temporadas_archivo(context, url_base, max_temporadas=4):
         
         if not season_elements:
             season_elements = await page.locator("a:has-text('20')").all()
-        
-        print(f"  🔍 Encontrados {len(season_elements)} elementos")
         
         # Procesar elementos
         for element in season_elements[:max_temporadas * 2]:
@@ -293,7 +414,7 @@ async def obtener_temporadas_archivo(context, url_base, max_temporadas=4):
                 continue
                 
     except Exception as e:
-        print(f"⚠️ Error obteniendo temporadas: {e}")
+        Stats.errores += 1
     finally:
         await page.close()
     
@@ -318,7 +439,6 @@ async def obtener_todas_temporadas(context, url_base, max_temporadas=MAX_TEMPORA
     }
     
     temporadas_info.append(temporada_actual)
-    print(f"  📅 Temporada actual: {año_actual}")
     
     # 2. Obtener temporadas pasadas
     temporadas_pasadas = await obtener_temporadas_archivo(context, url_base, max_temporadas - 1)
@@ -330,122 +450,103 @@ async def obtener_todas_temporadas(context, url_base, max_temporadas=MAX_TEMPORA
             temporadas_info.append(temp)
             años_existentes.add(temp['año'])
     
-    print(f"  📊 Total temporadas: {len(temporadas_info)}")
-    
     # Ordenar por año
     temporadas_info.sort(key=lambda x: x['año'], reverse=True)
     return temporadas_info[:max_temporadas]
 
 # ======================================
-# SCRAPER DE TEMPORADA
+# SCRAPER DE TEMPORADA CON ESTADÍSTICAS
 # ======================================
 async def scrape_temporada(context, main_page, url_resultados, db_name, liga_info):
-    """Procesa una temporada completa"""
+    """Procesa una temporada completa con estadísticas"""
     pais, liga, temporada = liga_info
     
-    print(f"\n====== {pais.upper()} | {liga} | {temporada} ======")
-    print(f"🌐 URL: {url_resultados}")
+    print(f"\n📅 [{Stats.temporadas_procesadas+1}/{Stats.temporadas_totales}] Procesando: {temporada} - {liga}")
 
     await main_page.goto(url_resultados, timeout=PAGE_TIMEOUT, wait_until="networkidle")
     
     try:
-        print("    🔽 Cargando todos los partidos...")
         await click_mostrar_mas_partidos(main_page)
         await main_page.wait_for_selector(".event__match", timeout=5000)
     except:
-        print(f"⚠️ No se encontraron partidos")
+        Stats.errores += 1
         return
 
     # Pool de pestañas
     tab_pool = await create_tab_pool(context)
     await expand_all(main_page)
 
-    # Extraer jornadas
-    jornada_actual = 1
-    round_elements = main_page.locator(".event__round")
-    total_rounds = await round_elements.count()
+    # Extraer fases y partidos
+    partidos_con_fase = await extraer_fases_y_partidos(main_page, liga)
     
-    for i in range(total_rounds):
-        try:
-            txt = await round_elements.nth(i).inner_text()
-            match = re.search(r'Jornada\s+(\d+)', txt, re.IGNORECASE)
-            if match:
-                jornada_actual = int(match.group(1))
-                print(f"📅 Jornada {jornada_actual}")
-        except:
-            continue
-
-    # Extraer partidos
-    partidos_data = []
-    match_elements = main_page.locator(".event__match")
-    total_matches = await match_elements.count()
+    if not partidos_con_fase:
+        Stats.errores += 1
+        return
     
-    print(f"📊 Encontrados {total_matches} partidos...")
+    # Actualizar estadísticas
+    Stats.partidos_extraidos += len(partidos_con_fase)
     
-    for i in range(total_matches):
-        try:
-            item = match_elements.nth(i)
-            datos = await item.evaluate("""
-                (node) => ({
-                    fecha: node.querySelector('.event__time')?.textContent?.trim() || '',
-                    local: node.querySelector('.event__homeParticipant')?.textContent?.trim() || '',
-                    visitante: node.querySelector('.event__awayParticipant')?.textContent?.trim() || ''
-                })
-            """)
-            
-            fecha = datos["fecha"]
-            local = datos["local"]
-            visitante = datos["visitante"]
-            
-            link_elem = item.locator("a.eventRowLink")
-            href = await link_elem.get_attribute("href") if await link_elem.count() > 0 else None
-            
-            if not href:
-                parent_id = await item.get_attribute("id")
-                if parent_id and parent_id.startswith("g_"):
-                    href = f"/partido/{parent_id.replace('g_','')}/"
+    # Organizar partidos por fase
+    partidos_por_fase = {}
+    for partido in partidos_con_fase:
+        fase = partido['fase']
+        if fase not in partidos_por_fase:
+            partidos_por_fase[fase] = []
+        partidos_por_fase[fase].append(partido)
+    
+    # Procesar cada fase
+    for fase, partidos in partidos_por_fase.items():
+        # Calcular jornadas para esta fase
+        partidos_por_jornada = {}
+        for i, partido in enumerate(partidos):
+            # Asignar jornada automáticamente
+            jornada = (i // 10) + 1
+            if jornada not in partidos_por_jornada:
+                partidos_por_jornada[jornada] = []
+            partidos_por_jornada[jornada].append(partido)
+        
+        # Procesar partidos en paralelo
+        partidos_data = []
+        for jornada, partidos_jornada in partidos_por_jornada.items():
+            for partido in partidos_jornada:
+                fecha = partido['fecha']
+                local = partido['local']
+                visitante = partido['visitante']
+                href = partido['href']
+                
+                if not href:
+                    continue
+                
+                full_href = f"https://www.flashscore.co{href}" if href.startswith("/") else href
+                
+                # Guardar en DB con la fase
+                save_empty_match(db_name, pais, liga, temporada, fase, jornada, fecha, local, visitante)
+                partidos_data.append((fase, jornada, fecha, local, visitante, full_href))
+        
+        # Procesar partidos en paralelo
+        if partidos_data:
+            async def procesar_partido(match):
+                tab = await acquire_tab(tab_pool)
+                try:
+                    await tab.page.goto("about:blank")
+                    return await scrape_partido_detalle(tab.page, db_name, pais, liga, temporada, *match)
+                finally:
+                    tab.lock.release()
 
-            if not href:
-                continue
-
-            full_href = f"https://www.flashscore.co{href}" if href.startswith("/") else href
-
-            # Guardar en DB
-            save_empty_match(db_name, pais, liga, temporada, jornada_actual, fecha, local, visitante)
-            partidos_data.append((jornada_actual, fecha, local, visitante, full_href))
-
-            if len(partidos_data) % 20 == 0:
-                print(f"  ➕ {len(partidos_data)} partidos extraídos...")
-
-        except:
-            continue
-
-    # Procesar partidos en paralelo
-    if partidos_data:
-        print(f"📊 Procesando {len(partidos_data)} partidos...")
-
-        async def procesar_partido(match):
-            tab = await acquire_tab(tab_pool)
-            try:
-                await tab.page.goto("about:blank")
-                return await scrape_partido_detalle(tab.page, db_name, pais, liga, temporada, *match)
-            finally:
-                tab.lock.release()
-
-        # Procesar en lotes
-        batch_size = PARTIDOS_PARALELO * 2
-        for i in range(0, len(partidos_data), batch_size):
-            batch = partidos_data[i:i+batch_size]
-            await asyncio.gather(*(procesar_partido(p) for p in batch))
-    else:
-        print("⚠️ No se encontraron partidos")
+            # Procesar en lotes
+            batch_size = PARTIDOS_PARALELO * 2
+            for i in range(0, len(partidos_data), batch_size):
+                batch = partidos_data[i:i+batch_size]
+                await asyncio.gather(*(procesar_partido(p) for p in batch))
     
     # Limpiar
     for tab in tab_pool:
         await tab.page.close()
+    
+    Stats.temporadas_procesadas += 1
 
-async def scrape_partido_detalle(detail_page, db_name, pais, liga, temporada, jornada, fecha, local, visitante, match_url):
-    """Procesa detalle de un partido"""
+async def scrape_partido_detalle(detail_page, db_name, pais, liga, temporada, fase, jornada, fecha, local, visitante, match_url):
+    """Procesa detalle de un partido y actualiza estadísticas"""
     try:
         for intento in range(RETRIES):
             try:
@@ -454,26 +555,35 @@ async def scrape_partido_detalle(detail_page, db_name, pais, liga, temporada, jo
                 break
             except:
                 if intento == RETRIES - 1:
+                    Stats.errores += 1
                     return
                 await asyncio.sleep(0.5)
 
         goles = await extraer_detalles(detail_page)
-        update_match(db_name, pais, liga, temporada, jornada, fecha, local, visitante, goles)
+        update_match(db_name, pais, liga, temporada, fase, jornada, fecha, local, visitante, goles)
 
-        total_local = goles["g_local_1t"] + goles["g_local_2t"]
-        total_visitante = goles["g_visitante_1t"] + goles["g_visitante_2t"]
-        print(f"  ✅ {local} {total_local}-{total_visitante} {visitante}")
+        # Actualizar estadísticas
+        Stats.partidos_procesados += 1
+        if goles["g_local_1t"] > 0 or goles["g_visitante_1t"] > 0 or goles["g_local_2t"] > 0 or goles["g_visitante_2t"] > 0:
+            Stats.partidos_con_goles += 1
 
     except Exception as e:
-        print(f"  ❌ Error en {local} vs {visitante}: {str(e)[:50]}")
+        Stats.errores += 1
 
 # ======================================
-# MAIN
+# MAIN CON MONITOR
 # ======================================
 async def main(urls_base):
-    """Función principal"""
-    print("🚀 Iniciando scraping...")
-    print(f"📅 Temporada actual: {get_temporada_actual()}")
+    """Función principal con monitor en vivo"""
+    print("🚀 Iniciando scraping con monitor en vivo...")
+    print("📊 El estado se actualizará cada 30 segundos")
+    
+    # Reiniciar estadísticas
+    Stats.reset()
+    Stats.ligas_totales = len(urls_base)
+    
+    # Iniciar monitor en segundo plano
+    monitor_task = asyncio.create_task(monitor(intervalo=30))
 
     async with async_playwright() as p:
         browser = await p.chromium.launch(
@@ -494,40 +604,48 @@ async def main(urls_base):
 
         main_page = await context.new_page()
 
+        # Primero contar todas las temporadas para mostrar progreso real
+        print("\n🔍 Contando temporadas disponibles...")
+        todas_temporadas = []
         for entry in urls_base:
-            # Formato: "url_base|nombre_base"
+            if "|" in entry:
+                url_base, _ = entry.split("|")
+            else:
+                url_base = entry
+            url_base = url_base.strip().rstrip('/')
+            
+            temporadas_info = await obtener_todas_temporadas(context, url_base, MAX_TEMPORADAS)
+            todas_temporadas.append((entry, temporadas_info))
+            Stats.temporadas_totales += len(temporadas_info)
+        
+        print(f"📈 Total temporadas a procesar: {Stats.temporadas_totales}")
+        
+        # Procesar cada liga
+        for entry, temporadas_info in todas_temporadas:
             if "|" in entry:
                 url_base, nombre_base = entry.split("|")
                 nombre_base = nombre_base.strip()
             else:
                 url_base = entry
-                nombre_base = url_base.split("/")[-1]  # Usar último segmento como nombre
+                nombre_base = url_base.split("/")[-1]
             
             url_base = url_base.strip().rstrip('/')
             DB_FOLDER = "X:/prueba n8n/data"
 
             try:
-                print(f"\n🔍 Procesando liga: {nombre_base}")
-                print(f"🌐 URL base: {url_base}")
+                print(f"\n{'='*60}")
+                print(f"🏆 Procesando liga: {nombre_base} ({len(temporadas_info)} temporadas)")
+                
+                Stats.ligas_procesadas += 1
 
-                # Obtener temporadas
-                temporadas_info = await obtener_todas_temporadas(context, url_base, MAX_TEMPORADAS)
-                
-                if not temporadas_info:
-                    print(f"⚠️ No se encontraron temporadas")
-                    continue
-                
                 # Procesar cada temporada
-                for i, temp_info in enumerate(temporadas_info, 1):
+                for temp_info in temporadas_info:
                     try:
-                        print(f"\n📊 [{i}/{len(temporadas_info)}] {temp_info['nombre']}")
-                        
                         # Crear nombre de archivo
                         año_limpio = temp_info['año'].replace("-", "_")
                         nombre_archivo = f"{nombre_base}_{año_limpio}"
                         db_name = os.path.join(DB_FOLDER, f"{nombre_archivo}.db")
                         
-                        print(f"📄 Base de datos: {db_name}")
                         init_db(db_name)
                         
                         # Procesar temporada
@@ -537,31 +655,50 @@ async def main(urls_base):
                         )
                         
                     except Exception as e:
-                        print(f"❌ Error en temporada: {e}")
+                        Stats.errores += 1
                         continue
 
             except Exception as e:
-                print(f"❌ Error procesando {url_base}: {e}")
+                Stats.errores += 1
                 continue
 
         await main_page.close()
         await browser.close()
+    
+    # Cancelar el monitor
+    monitor_task.cancel()
+    try:
+        await monitor_task
+    except asyncio.CancelledError:
+        pass
 
-    print("\n✅ Scraping completado!")
+    # Mostrar resumen final
+    print(f"\n{'='*60}")
+    print("✅ SCRAPING COMPLETADO")
+    print(f"{'='*60}")
+    print(f"📊 RESUMEN FINAL:")
+    print(f"  Ligas procesadas:      {Stats.ligas_procesadas}/{Stats.ligas_totales}")
+    print(f"  Temporadas procesadas: {Stats.temporadas_procesadas}/{Stats.temporadas_totales}")
+    print(f"  Fases detectadas:      {Stats.fases_detectadas}")
+    print(f"  Partidos extraídos:    {Stats.partidos_extraidos}")
+    print(f"  Partidos procesados:   {Stats.partidos_procesados}")
+    print(f"  Partidos con goles:    {Stats.partidos_con_goles}")
+    print(f"  Errores:               {Stats.errores}")
+    if Stats.partidos_procesados > 0:
+        print(f"  Tasa de éxito:         {(Stats.partidos_procesados - Stats.errores) / Stats.partidos_procesados * 100:.1f}%")
+    print(f"{'='*60}")
 
 # ======================================
-# EJEMPLO DE LLAMADA - SOLO URLS BASE
+# EJEMPLO DE LLAMADA
 # ======================================
 URLS_BASE = [
     # Formato: "URL_BASE|NOMBRE_ARCHIVO"
-    "https://www.flashscore.co/futbol/colombia/primera-a|Colombia",
-    "https://www.flashscore.co/futbol/belgica/jupiler-pro-league|Bélgica",
-    "https://www.flashscore.co/futbol/espana/laliga-ea-sports|España",
-    "https://www.flashscore.co/futbol/italia/serie-a|Italia",
+    "https://www.flashscore.co/futbol/suecia/allsvenskan/|Suecia",
 ]
 
 if __name__ == "__main__":
     inicio = time.perf_counter()
     asyncio.run(main(URLS_BASE))
     fin = time.perf_counter()
-    print(f"\n⏱️ Tiempo total: {fin - inicio:.2f} segundos")
+    print(f"⏱️  Tiempo total: {fin - inicio:.2f} segundos")
+    print(f"⚡ Velocidad: {Stats.partidos_procesados / (fin - inicio):.1f} partidos/segundo" if (fin - inicio) > 0 else "")

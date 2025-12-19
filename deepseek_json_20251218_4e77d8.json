@@ -1,0 +1,173 @@
+{
+  "name": "Scraper Fútbol Diario",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "trigger-schedule",
+      "name": "Trigger Diario",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [300, 400],
+      "webhookId": "scraper-diario"
+    },
+    {
+      "parameters": {
+        "command": "cd /ruta/a/tu/proyecto && python3 scraper_lite.py",
+        "options": {}
+      },
+      "id": "execute-scraper",
+      "name": "Ejecutar Scraper",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [500, 400]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.success }}",
+              "operation": "equals",
+              "value2": false
+            }
+          ]
+        }
+      },
+      "id": "check-error",
+      "name": "¿Hubo Error?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [700, 400]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "post",
+        "chatId": "={{ $env.TELEGRAM_CHAT_ID }}",
+        "text": "✅ Scraper ejecutado exitosamente\n\n📊 Resultados:\n- Partidos insertados: {{ $json.inserted }}\n- Tiempo: {{ $json.total_time }}s\n\nFecha: {{ $now.format('YYYY-MM-DD HH:mm:ss') }}",
+        "additionalFields": {}
+      },
+      "id": "telegram-success",
+      "name": "Notificar Éxito",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "post",
+        "chatId": "={{ $env.TELEGRAM_CHAT_ID }}",
+        "text": "🚨 ERROR en Scraper\n\n❌ Error: {{ $json.error }}\n\n⚠️ Revisar logs inmediatamente",
+        "additionalFields": {}
+      },
+      "id": "telegram-error",
+      "name": "Notificar Error",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1,
+      "position": [900, 500]
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "columns": {
+          "values": [
+            {
+              "id": "timestamp",
+              "name": "timestamp",
+              "value": "={{ $now.toISOString() }}"
+            },
+            {
+              "id": "success",
+              "name": "success",
+              "value": "={{ $json.success }}"
+            },
+            {
+              "id": "inserted",
+              "name": "inserted",
+              "value": "={{ $json.inserted }}"
+            },
+            {
+              "id": "error",
+              "name": "error",
+              "value": "={{ $json.error }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "log-supabase",
+      "name": "Log en Supabase",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [1100, 400]
+    }
+  ],
+  "connections": {
+    "Trigger Diario": {
+      "main": [
+        [
+          {
+            "node": "Ejecutar Scraper",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ejecutar Scraper": {
+      "main": [
+        [
+          {
+            "node": "¿Hubo Error?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Hubo Error?": {
+      "main": [
+        [
+          {
+            "node": "Notificar Éxito",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Notificar Error",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Notificar Éxito": {
+      "main": [
+        [
+          {
+            "node": "Log en Supabase",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notificar Error": {
+      "main": [
+        [
+          {
+            "node": "Log en Supabase",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {},
+  "staticData": null,
+  "triggerCount": 1
+}

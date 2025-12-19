@@ -1,0 +1,33 @@
+{
+  "name": "Recarga Automática Stripe",
+  "nodes": [
+    {
+      "id": "StripeTrigger",
+      "name": "Stripe Webhook",
+      "type": "n8n-nodes-base.stripeTrigger",
+      "typeVersion": 1,
+      "position": [200, 300],
+      "parameters": {
+        "events": [
+          "checkout.session.completed"
+        ]
+      }
+    },
+    {
+      "id": "ProcesarPago",
+      "name": "Procesar Pago",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [600, 300],
+      "parameters": {
+        "language": "javascript",
+        "code": "const session = $input.first().json.data.object;\n\nconst customerEmail = session.customer_details?.email;\nconst amount = session.amount_total / 100;\nconst metadata = session.metadata || {};\n\nif (!customerEmail || !amount) {\n  throw new Error('Datos de Stripe incompletos');\n}\n\n// Buscar cliente por email\nlet { data: cliente } = await supabase\n  .from('clientes')\n  .select('*')\n  .eq('email', customerEmail)\n  .single();\n\nif (!cliente) {\n  const { data: nuevoCliente, error } = await supabase\n    .from('clientes')\n    .insert({\n      email: customerEmail,\n      saldo: amount,\n      plan: metadata.plan || 'pay_as_you_go'\n    })\n    .select()\n    .single();\n\n  if (error) throw new Error(error.message);\n\n  cliente = nuevoCliente;\n} else {\n  const { error } = await supabase\n    .from('clientes')\n    .update({ saldo: cliente.saldo + amount })\n    .eq('id', cliente.id);\n\n  if (error) throw new Error(error.message);\n}\n\nawait supabase\n  .from('transacciones')\n  .insert({\n    cliente_id: cliente.id,\n    tipo: 'recarga',\n    descripcion: `Recarga de $${amount.toFixed(2)}`,\n    coste: amount,\n    metadata: {\n      stripe_session_id: session.id,\n      payment_method: session.payment_method_types?.[0]\n    }\n  });\n\nreturn [{ json: { success: true, cliente, monto: amount } }];"
+      }
+    }
+  ],
+  "connections": {
+    "Stripe Webhook": {
+      "main": [[{ "node": "Procesar Pago", "type": "main", "index": 0 }]]
+    }
+  }
+}

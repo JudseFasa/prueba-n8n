@@ -1,0 +1,75 @@
+{
+  "name": "API Gateway Pago por Consulta",
+  "nodes": [
+    {
+      "id": "WebhookTrigger",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [200, 300],
+      "parameters": {
+        "path": "api/v1/query",
+        "httpMethod": "POST",
+        "responseMode": "responseNode"
+      }
+    },
+    {
+      "id": "ValidarCliente",
+      "name": "Validar API Key y Saldo",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [500, 300],
+      "parameters": {
+        "language": "javascript",
+        "code": "const data = $input.first().json;\n\nconst apiKey = data.api_key;\nconst queryType = data.query_type;\nconst params = data.params || {};\n\nif (!apiKey || !queryType) {\n  throw new Error('Faltan parámetros requeridos');\n}\n\n// ⚠️ SUPABASE CLIENT DEBE ESTAR CONFIGURADO COMO CREDENCIAL GLOBAL\nconst { data: cliente, error } = await supabase\n  .from('clientes')\n  .select('*')\n  .eq('api_key', apiKey)\n  .single();\n\nif (error || !cliente) {\n  return [{ json: { error: 'API Key inválida', code: 401 } }];\n}\n\nconst hoy = new Date().toISOString().split('T')[0];\n\nconst { count } = await supabase\n  .from('transacciones')\n  .select('*', { count: 'exact', head: true })\n  .eq('cliente_id', cliente.id)\n  .eq('tipo', 'consulta')\n  .gte('created_at', hoy + 'T00:00:00');\n\nif (count >= cliente.limite_diario) {\n  return [{ json: { error: 'Límite diario alcanzado', code: 429 } }];\n}\n\nconst { data: precio } = await supabase\n  .from('precios_consultas')\n  .select('*')\n  .eq('tipo_consulta', queryType)\n  .single();\n\nif (!precio) {\n  return [{ json: { error: 'Tipo de consulta no válido', code: 400 } }];\n}\n\nconst costeEstimado = precio.coste_base;\n\nif (cliente.saldo < costeEstimado) {\n  return [{ json: {\n    error: 'Saldo insuficiente',\n    saldo_actual: cliente.saldo,\n    coste_estimado: costeEstimado,\n    code: 402\n  }}];\n}\n\nreturn [{ json: { cliente, precio, params } }];"
+      }
+    },
+    {
+      "id": "EjecutarConsulta",
+      "name": "Ejecutar Consulta",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [800, 300],
+      "parameters": {
+        "language": "javascript",
+        "code": "const { cliente, precio, params } = $input.first().json;\n\nlet query = supabase.from('partidos').select('*', { count: 'exact' });\n\nswitch (precio.tipo_consulta) {\n  case 'partido_simple':\n    query = query\n      .eq('local_id', params.local)\n      .eq('visitante_id', params.visitante)\n      .eq('fecha', params.fecha)\n      .limit(1);\n    break;\n\n  case 'equipo_historico':\n    query = query\n      .or(`local_id.eq.${params.equipo},visitante_id.eq.${params.equipo}`)\n      .order('fecha', { ascending: false })\n      .limit(params.limit || 100);\n    break;\n\n  case 'liga_temporada':\n    query = query\n      .eq('temporada_id', params.temporada)\n      .order('jornada', { ascending: true });\n    break;\n\n  default:\n    throw new Error('Tipo de consulta no soportado');\n}\n\nconst { data, error, count } = await query;\n\nif (error) {\n  throw new Error(error.message);\n}\n\nconst filas = count || data.length;\nconst costeFinal = precio.coste_base + filas * precio.coste_por_fila;\n\nreturn [{ json: { cliente, resultados: data, filas, costeFinal, precio } }];"
+      }
+    },
+    {
+      "id": "Cobrar",
+      "name": "Cobrar y Registrar",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1100, 300],
+      "parameters": {
+        "language": "javascript",
+        "code": "const { cliente, resultados, filas, costeFinal, precio } = $input.first().json;\n\nconst { error } = await supabase.rpc('realizar_cobro', {\n  p_cliente_id: cliente.id,\n  p_tipo: 'consulta',\n  p_descripcion: `Consulta: ${precio.tipo_consulta}`,\n  p_coste: costeFinal,\n  p_metadata: { filas, tipo: precio.tipo_consulta }\n});\n\nif (error) {\n  throw new Error(error.message);\n}\n\nconst { data: clienteActualizado } = await supabase\n  .from('clientes')\n  .select('saldo, total_consultas, total_gastado')\n  .eq('id', cliente.id)\n  .single();\n\nreturn [{ json: {\n  success: true,\n  datos: resultados,\n  metadata: {\n    filas,\n    coste: costeFinal,\n    saldo_restante: clienteActualizado.saldo\n  }\n}}];"
+      }
+    },
+    {
+      "id": "Responder",
+      "name": "Responder",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1400, 300],
+      "parameters": {
+        "responseBody": "={{ $json }}",
+        "responseCode": 200
+      }
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [[{ "node": "Validar API Key y Saldo", "type": "main", "index": 0 }]]
+    },
+    "Validar API Key y Saldo": {
+      "main": [[{ "node": "Ejecutar Consulta", "type": "main", "index": 0 }]]
+    },
+    "Ejecutar Consulta": {
+      "main": [[{ "node": "Cobrar y Registrar", "type": "main", "index": 0 }]]
+    },
+    "Cobrar y Registrar": {
+      "main": [[{ "node": "Responder", "type": "main", "index": 0 }]]
+    }
+  }
+}
